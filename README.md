@@ -1,7 +1,17 @@
 # base58 ![Go](https://github.com/koba-e964/base58-go/actions/workflows/go.yml/badge.svg?query=branch%3Amain)
-`base58` is a fast implementation of [Base58](https://en.bitcoin.it/wiki/Base58Check_encoding) with resistance to side-channel attacks.
+`base58` is a fast, cryptographically secure, purely Go implementation of [Base58](https://en.bitcoin.it/wiki/Base58Check_encoding) with resistance to side-channel attacks.
+
+# Security
+This package provides constant-time functions (`base58.Encode` and `base58.Decode`) that convert from/to Base58 strings, which offers cryptographic security that resists side-channel attacks such as [timing attacks](https://en.wikipedia.org/wiki/Timing_attack).
+As far as the author knows, there are no libraries so far that provide constant-time functions. The author checked the following libraries so far:
+- https://github.com/btcsuite/btcd/tree/13152b35e191385a874294a9dbc902e48b1d71b0/btcutil/base58
+- https://github.com/itchyny/base58-go/blob/v0.2.1/base58.go
+- https://github.com/trezor/trezor-crypto/blob/915b3dbbbf58c262865647728a3463b8785fc965/base58.c#L149
+- https://github.com/akamensky/base58/blob/71d82f380f85866825434c181ba341ec09cba13b/base58.go
+- https://github.com/mr-tron/base58/blob/v1.2.0/base58.go
 
 # Benchmarks
+This package provides variable-time functions (`base58.VartimeEncode` and `base58.VartimeDecode`) as well.
 ```console
 $ go test -bench=5K .
 goos: darwin
@@ -15,7 +25,7 @@ PASS
 ok      github.com/koba-e964/base58-go  5.459s
 ```
 
-The performance of base58.VartimeEncode and base58.VartimeDecode is comparable to that of [github.com/btcsuite/btcd/btcutil/base58](https://github.com/btcsuite/btcd/tree/13152b35e191385a874294a9dbc902e48b1d71b0/btcutil/base58):
+The performance of `base58.VartimeEncode` and `base58.VartimeDecode` is comparable to that of [github.com/btcsuite/btcd/btcutil/base58](https://github.com/btcsuite/btcd/tree/13152b35e191385a874294a9dbc902e48b1d71b0/btcutil/base58):
 
 ```console
 $ go test -bench=5K .
@@ -38,8 +48,5 @@ Date:   Tue Jan 23 20:25:55 2024 -0800
 $ go version
 go version go1.22.0 darwin/arm64
 ```
-
-Besides, this package offers the constant-time version of these functions, namely base58.Encode and base58.Decode, which prevents side-channel attacks such as timing attacks.
-
 # Docs
 https://pkg.go.dev/github.com/koba-e964/base58-go
