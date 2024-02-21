@@ -1,4 +1,4 @@
-# base58
+# base58 ![Go](https://github.com/koba-e964/base58-go/actions/workflows/go.yml/badge.svg?query=branch%3Amain)
 `base58` is a fast implementation of [Base58](https://en.bitcoin.it/wiki/Base58Check_encoding) with resistance to side-channel attacks.
 
 # Benchmarks
