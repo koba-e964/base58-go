@@ -44,9 +44,9 @@ func Encode(a []byte, resultLength int) string {
 		tmp[len(tmp)-1-i/4] |= uint32(a[aLen-1-i]) << (8 * (i % 4))
 	}
 	result := make([]byte, resultLength)
-	// log(58)/log(2) > 5.857 > 23/4, so every 4 letters we can delete 23 bits
+	// log(58)/log(2) > 5.857 > 29/5, so every 5 letters we can delete 29 bits
 	deletedBits := 0
-	for i := 0; i < resultLength; i += 4 {
+	for i := 0; i < resultLength; i += 5 {
 		rems := div58(tmp[min(len(tmp), deletedBits/32):])
 		conv := func(remainder int) byte {
 			char := '1' + remainder                                                                              // [0,9): '1'..'9'
@@ -58,19 +58,19 @@ func Encode(a []byte, resultLength int) string {
 			return byte(char)
 		}
 		result[resultLength-1-i] = conv(rems[0])
-		for j := 1; j < 4; j++ {
+		for j := 1; j < 5; j++ {
 			if i+j < resultLength {
 				result[resultLength-1-i-j] = conv(rems[j])
 			}
 		}
-		deletedBits += 23
+		deletedBits += 29
 	}
 	return unsafe.String(unsafe.SliceData(result), len(result))
 }
 
-func div58(a []uint32) [4]int {
+func div58(a []uint32) [5]int {
 	// Using the idea described in https://github.com/btcsuite/btcd/blob/13152b35e191385a874294a9dbc902e48b1d71b0/btcutil/base58/base58.go#L34-L49
-	const d = 58 * 58 * 58 * 58
+	const d = 58 * 58 * 58 * 58 * 58
 	var carry uint64
 	for i := 0; i < len(a); i++ {
 		tmp := carry<<32 | uint64(a[i])
@@ -78,8 +78,8 @@ func div58(a []uint32) [4]int {
 		a[i] = uint32(q)
 		carry = tmp - q*d
 	}
-	var res [4]int
-	for i := 0; i < 4; i++ {
+	var res [5]int
+	for i := 0; i < 5; i++ {
 		res[i] = int(carry % 58)
 		carry /= 58
 	}
