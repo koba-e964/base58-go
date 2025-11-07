@@ -3,6 +3,7 @@ package base58
 import (
 	"crypto/subtle"
 	"math/big"
+	"math/bits"
 	"unsafe"
 )
 
@@ -70,18 +71,44 @@ func Encode(a []byte, resultLength int) string {
 
 func div58(a []uint32) [5]int {
 	// Using the idea described in https://github.com/btcsuite/btcd/blob/13152b35e191385a874294a9dbc902e48b1d71b0/btcutil/base58/base58.go#L34-L49
-	const d = 58 * 58 * 58 * 58 * 58
+	// Using Barrett Reduction for constant-time division (https://kyberslash.cr.yp.to/)
+	const d = 58 * 58 * 58 * 58 * 58 // 656356768
+	// Barrett reduction constants for division by d
+	// m = floor(2^64 / d) where k=64
+	const mBarrett64 = 28104751825 // floor(2^64 / 656356768)
+
 	var carry uint64
 	for i := 0; i < len(a); i++ {
 		tmp := carry<<32 | uint64(a[i])
-		q := tmp / d
+		// Barrett reduction: q ≈ (tmp * m) >> 64
+		// For 64-bit tmp, we need to compute the high 64 bits of tmp * mBarrett64
+		qHi, _ := bits.Mul64(tmp, mBarrett64)
+		q := qHi
+		r := tmp - q*d
+		// Correction step (constant-time)
+		correction := uint64(subtle.ConstantTimeSelect(subtle.ConstantTimeLessOrEq(int(d), int(r)), 1, 0))
+		q += correction
+		r -= correction * d
 		a[i] = uint32(q)
-		carry = tmp - q*d
+		carry = r
 	}
+
+	// Barrett reduction constants for division by 58
+	// m58 = floor(2^64 / 58) where k=64
+	const mBarrett58 = 318047311615681924 // floor(2^64 / 58)
+
 	var res [5]int
 	for i := 0; i < 5; i++ {
-		res[i] = int(carry % 58)
-		carry /= 58
+		// Barrett reduction for division by 58
+		qHi, _ := bits.Mul64(carry, mBarrett58)
+		q := qHi
+		r := carry - q*58
+		// Correction step (constant-time)
+		correction := uint64(subtle.ConstantTimeSelect(subtle.ConstantTimeLessOrEq(58, int(r)), 1, 0))
+		q += correction
+		r -= correction * 58
+		res[i] = int(r)
+		carry = q
 	}
 	return res
 }
