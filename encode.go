@@ -93,7 +93,7 @@ func div58(a []uint32) [5]int {
 	const d = 58 * 58 * 58 * 58 * 58 // 656356768
 	// Barrett reduction constants for division by d
 	// m = floor(2^64 / d) where k=64
-	// Verification: 2^64 / 656356768 ≈ 28104751825.15, floor = 28104751825
+	// Verification: 2^64 / 656356768 ≈ 28104751825.625, floor = 28104751825
 	const mBarrett64 = 28104751825 // floor(2^64 / 656356768)
 
 	var carry uint64
@@ -114,7 +114,7 @@ func div58(a []uint32) [5]int {
 
 	// Barrett reduction constants for division by 58
 	// m58 = floor(2^64 / 58) where k=64
-	// Verification: 2^64 / 58 ≈ 318047311615681924.27, floor = 318047311615681924
+	// Verification: 2^64 / 58 ≈ 318047311615681924.414, floor = 318047311615681924
 	const mBarrett58 = 318047311615681924 // floor(2^64 / 58)
 
 	var res [5]int
