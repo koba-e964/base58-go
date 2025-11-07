@@ -69,12 +69,31 @@ func Encode(a []byte, resultLength int) string {
 	return unsafe.String(unsafe.SliceData(result), len(result))
 }
 
+// constantTimeGeqUint64 returns 1 if a >= b, 0 otherwise, in constant time.
+func constantTimeGeqUint64(a, b uint64) int {
+	// Split into high and low 32 bits to safely use subtle functions
+	// which take int parameters that may be 32-bit on some platforms.
+	aHi := uint32(a >> 32)
+	aLo := uint32(a)
+	bHi := uint32(b >> 32)
+	bLo := uint32(b)
+
+	// a >= b if: aHi > bHi, OR (aHi == bHi AND aLo >= bLo)
+	// Note: uint32 always fits in int (int is at least 32 bits in Go)
+	hiGreater := subtle.ConstantTimeLessOrEq(int(bHi), int(aHi)) & ^subtle.ConstantTimeEq(int32(aHi), int32(bHi))
+	hiEqual := subtle.ConstantTimeEq(int32(aHi), int32(bHi))
+	loGeq := subtle.ConstantTimeLessOrEq(int(bLo), int(aLo))
+
+	return hiGreater | (hiEqual & loGeq)
+}
+
 func div58(a []uint32) [5]int {
 	// Using the idea described in https://github.com/btcsuite/btcd/blob/13152b35e191385a874294a9dbc902e48b1d71b0/btcutil/base58/base58.go#L34-L49
 	// Using Barrett Reduction for constant-time division (https://kyberslash.cr.yp.to/)
 	const d = 58 * 58 * 58 * 58 * 58 // 656356768
 	// Barrett reduction constants for division by d
 	// m = floor(2^64 / d) where k=64
+	// Verification: 2^64 / 656356768 ≈ 28104751825.15, floor = 28104751825
 	const mBarrett64 = 28104751825 // floor(2^64 / 656356768)
 
 	var carry uint64
@@ -86,7 +105,7 @@ func div58(a []uint32) [5]int {
 		q := qHi
 		r := tmp - q*d
 		// Correction step (constant-time)
-		correction := uint64(subtle.ConstantTimeSelect(subtle.ConstantTimeLessOrEq(int(d), int(r)), 1, 0))
+		correction := uint64(subtle.ConstantTimeSelect(constantTimeGeqUint64(r, d), 1, 0))
 		q += correction
 		r -= correction * d
 		a[i] = uint32(q)
@@ -95,6 +114,7 @@ func div58(a []uint32) [5]int {
 
 	// Barrett reduction constants for division by 58
 	// m58 = floor(2^64 / 58) where k=64
+	// Verification: 2^64 / 58 ≈ 318047311615681924.27, floor = 318047311615681924
 	const mBarrett58 = 318047311615681924 // floor(2^64 / 58)
 
 	var res [5]int
@@ -104,7 +124,7 @@ func div58(a []uint32) [5]int {
 		q := qHi
 		r := carry - q*58
 		// Correction step (constant-time)
-		correction := uint64(subtle.ConstantTimeSelect(subtle.ConstantTimeLessOrEq(58, int(r)), 1, 0))
+		correction := uint64(subtle.ConstantTimeSelect(constantTimeGeqUint64(r, 58), 1, 0))
 		q += correction
 		r -= correction * 58
 		res[i] = int(r)
