@@ -92,8 +92,6 @@ func div58(a []uint32) [5]int {
 	// Using Barrett Reduction for constant-time division (https://kyberslash.cr.yp.to/)
 	const d = 58 * 58 * 58 * 58 * 58 // 656356768
 	// Barrett reduction constants for division by d
-	// m = floor(2^64 / d) where k=64
-	// Verification: 2^64 / 656356768 ≈ 28104751825.625, floor = 28104751825
 	const mBarrett64 = 28104751825 // floor(2^64 / 656356768)
 
 	var carry uint64
@@ -101,13 +99,14 @@ func div58(a []uint32) [5]int {
 		tmp := carry<<32 | uint64(a[i])
 		// Barrett reduction: q ≈ (tmp * m) >> 64
 		// For 64-bit tmp, we need to compute the high 64 bits of tmp * mBarrett64
-		qHi, _ := bits.Mul64(tmp, mBarrett64)
-		q := qHi
-		r := tmp - q*d
+		q, _ := bits.Mul64(tmp, mBarrett64)
+		_, qd := bits.Mul64(q, d)
+		r := tmp - qd
 		// Correction step (constant-time)
 		correction := uint64(subtle.ConstantTimeSelect(constantTimeGeqUint64(r, d), 1, 0))
+		correctionD := -correction & d
 		q += correction
-		r -= correction * d
+		r -= correctionD
 		a[i] = uint32(q)
 		carry = r
 	}
@@ -120,13 +119,14 @@ func div58(a []uint32) [5]int {
 	var res [5]int
 	for i := 0; i < 5; i++ {
 		// Barrett reduction for division by 58
-		qHi, _ := bits.Mul64(carry, mBarrett58)
-		q := qHi
-		r := carry - q*58
+		q, _ := bits.Mul64(carry, mBarrett58)
+		_, q58 := bits.Mul64(q, 58)
+		r := carry - q58
 		// Correction step (constant-time)
 		correction := uint64(subtle.ConstantTimeSelect(constantTimeGeqUint64(r, 58), 1, 0))
+		correction58 := -correction & 58
 		q += correction
-		r -= correction * 58
+		r -= correction58
 		res[i] = int(r)
 		carry = q
 	}
