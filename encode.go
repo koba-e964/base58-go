@@ -45,9 +45,9 @@ func Encode(a []byte, resultLength int) string {
 		tmp[len(tmp)-1-i/4] |= uint32(a[aLen-1-i]) << (8 * (i % 4))
 	}
 	result := make([]byte, resultLength)
-	// log(58)/log(2) > 5.857 > 29/5, so every 5 letters we can delete 29 bits
+	// log(58)/log(2) > 5.857 > 35/6, so every 6 letters we can delete 35 bits
 	deletedBits := 0
-	for i := 0; i < resultLength; i += 5 {
+	for i := 0; i < resultLength; i += Div58BlockSize {
 		rems := div58(tmp[min(len(tmp), deletedBits/32):])
 		conv := func(remainder int) byte {
 			char := '1' + remainder                                                                              // [0,9): '1'..'9'
@@ -59,12 +59,12 @@ func Encode(a []byte, resultLength int) string {
 			return byte(char)
 		}
 		result[resultLength-1-i] = conv(rems[0])
-		for j := 1; j < 5; j++ {
+		for j := 1; j < Div58BlockSize; j++ {
 			if i+j < resultLength {
 				result[resultLength-1-i-j] = conv(rems[j])
 			}
 		}
-		deletedBits += 29
+		deletedBits += 35
 	}
 	return unsafe.String(unsafe.SliceData(result), len(result))
 }
@@ -87,37 +87,43 @@ func constantTimeGeqUint64(a, b uint64) int {
 	return hiGreater | (hiEqual & loGeq)
 }
 
-func div58(a []uint32) [5]int {
+const Div58BlockSize = 6
+
+func div58(a []uint32) [Div58BlockSize]int {
 	// Using the idea described in https://github.com/btcsuite/btcd/blob/13152b35e191385a874294a9dbc902e48b1d71b0/btcutil/base58/base58.go#L34-L49
 	// Using Barrett Reduction for constant-time division (https://kyberslash.cr.yp.to/)
-	const d = 58 * 58 * 58 * 58 * 58 // 656356768
+	const d = 594823321 // 29^6
 	// Barrett reduction constants for division by d
-	const mBarrett64 = 28104751825 // floor(2^64 / 656356768)
+	const mBarrett64 = 31012139945 // floor(2^64 / 29^6)
 
 	var carry uint64
+	var carryBits uint64
 	for i := 0; i < len(a); i++ {
 		tmp := carry<<32 | uint64(a[i])
 		// Barrett reduction: q ≈ (tmp * m) >> 64
 		// For 64-bit tmp, we need to compute the high 64 bits of tmp * mBarrett64
 		q, _ := bits.Mul64(tmp, mBarrett64)
-		_, qd := bits.Mul64(q, d)
+		qd := q * d
 		r := tmp - qd
 		// Correction step (constant-time)
 		correction := uint64(subtle.ConstantTimeSelect(constantTimeGeqUint64(r, d), 1, 0))
-		correctionD := -correction & d
+		correctionD := correction * d
 		q += correction
 		r -= correctionD
-		a[i] = uint32(q)
+		a[i] = uint32(q>>Div58BlockSize) | uint32(carryBits<<(32-Div58BlockSize))
 		carry = r
+		carryBits = q & ((1 << Div58BlockSize) - 1)
 	}
+
+	carry += carryBits * d
 
 	// Barrett reduction constants for division by 58
 	// m58 = floor(2^64 / 58) where k=64
 	// Verification: 2^64 / 58 ≈ 318047311615681924.414, floor = 318047311615681924
 	const mBarrett58 = 318047311615681924 // floor(2^64 / 58)
 
-	var res [5]int
-	for i := 0; i < 5; i++ {
+	var res [Div58BlockSize]int
+	for i := 0; i < Div58BlockSize; i++ {
 		// Barrett reduction for division by 58
 		q, _ := bits.Mul64(carry, mBarrett58)
 		_, q58 := bits.Mul64(q, 58)

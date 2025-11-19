@@ -34,6 +34,14 @@ func TestEncode2(t *testing.T) {
 	assert.Equal(t, encoded, actual)
 }
 
+func TestDiv58(t *testing.T) {
+	// 58^6
+	a := []uint32{0x8, 0xdd122640}
+	rem := div58(a)
+	assert.Equal(t, [6]int{0, 0, 0, 0, 0, 0}, rem)
+	assert.Equal(t, []uint32{0, 1}, a)
+}
+
 func BenchmarkEncode_ConstantTime_Long(b *testing.B) {
 	var data [82]byte
 	data[0] = 1
