@@ -13,17 +13,19 @@ As far as the author knows, there are no libraries so far that provide constant-
 # Benchmarks
 This package provides variable-time functions (`base58.VartimeEncode` and `base58.VartimeDecode`) as well.
 ```console
+$ go version
+go version go1.25.2 darwin/arm64
 $ go test -bench=5K .
 goos: darwin
 goarch: arm64
 pkg: github.com/koba-e964/base58-go
 cpu: Apple M2
-BenchmarkDecode_ConstantTime_5K-8            637           1897608 ns/op           3.65 MB/s        5376 B/op          1 allocs/op
-BenchmarkDecode_VariableTime_5K-8           7579            140458 ns/op          49.29 MB/s      338048 B/op        126 allocs/op
-BenchmarkEncode_ConstantTime_5K-8            412           2670042 ns/op           1.87 MB/s       12288 B/op          2 allocs/op
-BenchmarkEncode_VariableTime_5K-8            939           1301547 ns/op           3.84 MB/s       24664 B/op        686 allocs/op
+BenchmarkDecode_ConstantTime_5K-8            679           1798649 ns/op           3.85 MB/s        5376 B/op          1 allocs/op
+BenchmarkDecode_VariableTime_5K-8           8347            121181 ns/op          57.13 MB/s      338043 B/op        126 allocs/op
+BenchmarkEncode_ConstantTime_5K-8            236           5192019 ns/op           0.96 MB/s       12288 B/op          2 allocs/op
+BenchmarkEncode_VariableTime_5K-8            912           1209566 ns/op           4.13 MB/s       24664 B/op        686 allocs/op
 PASS
-ok      github.com/koba-e964/base58-go  5.436s
+ok      github.com/koba-e964/base58-go  6.809s
 ```
 
 The performance of `base58.VartimeEncode` and `base58.VartimeDecode` is comparable to that of [github.com/btcsuite/btcd/btcutil/base58](https://github.com/btcsuite/btcd/tree/aa58ce24b9dea750aedaad8f0f2b5fd6475af4cc/btcutil/base58):
