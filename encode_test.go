@@ -1,6 +1,7 @@
 package base58
 
 import (
+	"crypto/rand"
 	"encoding/hex"
 	"testing"
 
@@ -32,6 +33,32 @@ func TestEncode2(t *testing.T) {
 	encoded := "5HwoXVkHoRM8sL2KmNRS217n1g8mPPBomrY7yehCuXC1115WWsh"
 	actual := Encode(hex, 51)
 	assert.Equal(t, encoded, actual)
+}
+
+func TestEncode3(t *testing.T) {
+	// A case in https://lists.linuxfoundation.org/pipermail/bitcoin-dev/2012-January/001039.html
+	hex, _ := hex.DecodeString("80dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd4bd01a1a")
+	encoded := "5KVzsHJiUxgvBBgtVS7qBTbbYZpwWM4WQNCCyNSiuFCJzYMxg8H"
+	actual := Encode(hex, 51)
+	assert.Equal(t, encoded, actual)
+}
+
+func TestEncode4(t *testing.T) {
+	for i := 0; i < 10000; i++ {
+		hex := make([]byte, 37)
+		rand.Reader.Read(hex[:])
+		encoded := VartimeEncode(hex, 51)
+		actual := Encode(hex, 51)
+		assert.Equal(t, encoded, actual)
+	}
+}
+
+func TestDiv58(t *testing.T) {
+	// 58^6
+	a := []uint32{0x8, 0xdd122640}
+	rem := div58(a)
+	assert.Equal(t, [6]int{0, 0, 0, 0, 0, 0}, rem)
+	assert.Equal(t, []uint32{0, 1}, a)
 }
 
 func BenchmarkEncode_ConstantTime_Long(b *testing.B) {

@@ -3,6 +3,7 @@ package base58
 import (
 	"crypto/subtle"
 	"math/big"
+	"math/bits"
 	"unsafe"
 )
 
@@ -44,9 +45,9 @@ func Encode(a []byte, resultLength int) string {
 		tmp[len(tmp)-1-i/4] |= uint32(a[aLen-1-i]) << (8 * (i % 4))
 	}
 	result := make([]byte, resultLength)
-	// log(58)/log(2) > 5.857 > 29/5, so every 5 letters we can delete 29 bits
+	// log(58)/log(2) > 5.857 > 35/6, so every 6 letters we can delete 35 bits
 	deletedBits := 0
-	for i := 0; i < resultLength; i += 5 {
+	for i := 0; i < resultLength; i += Div58BlockSize {
 		rems := div58(tmp[min(len(tmp), deletedBits/32):])
 		conv := func(remainder int) byte {
 			char := '1' + remainder                                                                              // [0,9): '1'..'9'
@@ -58,30 +59,82 @@ func Encode(a []byte, resultLength int) string {
 			return byte(char)
 		}
 		result[resultLength-1-i] = conv(rems[0])
-		for j := 1; j < 5; j++ {
+		for j := 1; j < Div58BlockSize; j++ {
 			if i+j < resultLength {
 				result[resultLength-1-i-j] = conv(rems[j])
 			}
 		}
-		deletedBits += 29
+		deletedBits += 35
 	}
 	return unsafe.String(unsafe.SliceData(result), len(result))
 }
 
-func div58(a []uint32) [5]int {
+// constantTimeGeqUint64 returns 1 if a >= b, 0 otherwise, in constant time.
+func constantTimeGeqUint64(a, b uint64) int {
+	// Split into high and low 32 bits to safely use subtle functions
+	// which take int parameters that may be 32-bit on some platforms.
+	aHi := uint32(a >> 32)
+	aLo := uint32(a)
+	bHi := uint32(b >> 32)
+	bLo := uint32(b)
+
+	// a >= b if: aHi > bHi, OR (aHi == bHi AND aLo >= bLo)
+	// Note: uint32 always fits in int (int is at least 32 bits in Go)
+	hiGreater := subtle.ConstantTimeLessOrEq(int(bHi), int(aHi)) & ^subtle.ConstantTimeEq(int32(aHi), int32(bHi))
+	hiEqual := subtle.ConstantTimeEq(int32(aHi), int32(bHi))
+	loGeq := subtle.ConstantTimeLessOrEq(int(bLo), int(aLo))
+
+	return hiGreater | (hiEqual & loGeq)
+}
+
+const Div58BlockSize = 6
+
+func div58(a []uint32) [Div58BlockSize]int {
 	// Using the idea described in https://github.com/btcsuite/btcd/blob/13152b35e191385a874294a9dbc902e48b1d71b0/btcutil/base58/base58.go#L34-L49
-	const d = 58 * 58 * 58 * 58 * 58
+	// Using Barrett Reduction for constant-time division (https://kyberslash.cr.yp.to/)
+	const d = 594823321 // 29^6
+	// Barrett reduction constants for division by d
+	const mBarrett64 = 31012139945 // floor(2^64 / 29^6)
+
 	var carry uint64
+	var carryBits uint64
 	for i := 0; i < len(a); i++ {
 		tmp := carry<<32 | uint64(a[i])
-		q := tmp / d
-		a[i] = uint32(q)
-		carry = tmp - q*d
+		// Barrett reduction: q ≈ (tmp * m) >> 64
+		// For 64-bit tmp, we need to compute the high 64 bits of tmp * mBarrett64
+		q, _ := bits.Mul64(tmp, mBarrett64)
+		qd := q * d
+		r := tmp - qd
+		// Correction step (constant-time)
+		correction := uint64(subtle.ConstantTimeSelect(constantTimeGeqUint64(r, d), 1, 0))
+		correctionD := correction * d
+		q += correction
+		r -= correctionD
+		a[i] = uint32(q>>Div58BlockSize) | uint32(carryBits<<(32-Div58BlockSize))
+		carry = r
+		carryBits = q & ((1 << Div58BlockSize) - 1)
 	}
-	var res [5]int
-	for i := 0; i < 5; i++ {
-		res[i] = int(carry % 58)
-		carry /= 58
+
+	carry += carryBits * d
+
+	// Barrett reduction constants for division by 58
+	// m58 = floor(2^64 / 58) where k=64
+	// Verification: 2^64 / 58 ≈ 318047311615681924.414, floor = 318047311615681924
+	const mBarrett58 = 318047311615681924 // floor(2^64 / 58)
+
+	var res [Div58BlockSize]int
+	for i := 0; i < Div58BlockSize; i++ {
+		// Barrett reduction for division by 58
+		q, _ := bits.Mul64(carry, mBarrett58)
+		_, q58 := bits.Mul64(q, 58)
+		r := carry - q58
+		// Correction step (constant-time)
+		correction := uint64(subtle.ConstantTimeSelect(constantTimeGeqUint64(r, 58), 1, 0))
+		correction58 := -correction & 58
+		q += correction
+		r -= correction58
+		res[i] = int(r)
+		carry = q
 	}
 	return res
 }
